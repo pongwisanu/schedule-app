@@ -3,7 +3,12 @@ services:
     image: redis:8
     ports:
       - 6379:6379
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
   mongo:
     image: mongo:8
     ports:
@@ -11,7 +16,13 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASS}
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   express: 
     image: mongo-express:1.0.2
     ports:
@@ -23,19 +34,20 @@ services:
       ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_PASS}
       ME_CONFIG_MONGODB_SERVER: mongo
     depends_on:
-      - mongo
-  producer:
-    build: scheduler/producer
-    environment:
-      - BROKER_HOST=redis
-    ports:
-      - 5001:5000
-    depends_on:
-      - consumer
-  consumer:
-    build: scheduler/consumer
-    environment:
-      - BROKER_HOST=redis
-    depends_on:
-      - redis
+      mongo:
+        condition: service_healthy
+  # producer:
+  #   build: scheduler/producer
+  #   environment:
+  #     - BROKER_HOST=redis
+  #   ports:
+  #     - 5001:5000
+  #   depends_on:
+  #     - consumer
+  # consumer:
+  #   build: scheduler/consumer
+  #   environment:
+  #     - BROKER_HOST=redis
+  #   depends_on:
+  #     - redis
   

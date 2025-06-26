@@ -1,10 +1,21 @@
-from flask import Flask, request, jsonify
-from extension import scheduler
+from flask import Flask, request, jsonify , url_for
+from extension import scheduler , mongo
 from celery_trigger import first_trigger
+from pymongo.errors import ConnectionFailure
 import time
 import datetime
 import atexit
 import json
+import os
+import importlib
+import requests
+
+try:
+    mongo.admin.command('ping')
+    print(f"Connection to DB Successful", flush=True)
+except ConnectionFailure as e:
+    print(f"Connection Failure : {e}", flush=True)
+    os._exit(1)
 
 app = Flask(__name__)
 
@@ -30,6 +41,10 @@ def GetAll():
     except Exception as e:
         return str(e)
 
+@app.route("/get/trigger", methods=['GET'])
+def GetTrigger():
+    return
+
 @app.route("/get/<id>", methods=['GET'])
 def GetJob(id):
     try:
@@ -49,17 +64,43 @@ def GetJob(id):
     except Exception as e:
         return str(e)
     
-@app.route("/add", methods=['GET'])
-def AddJob():
-    job = scheduler.add_job(
-        func=first_trigger.FirstTrigger,
-        trigger="interval",
-        seconds=20,
-        id="first_trigger",
-        name="first_trigger",
-        replace_existing=True,
-    )
-    return "Add job name %s" % job.name
+@app.route("/add/<id>", methods=['GET'])
+def AddJob(id):
+    
+    try:
+        JOB_COLLECTION = mongo.schedule.job
+        
+        res = JOB_COLLECTION.find_one({"id":id})
+        
+        if res is None:
+            func = GetFunctionFromString(id)
+            
+            trigger_type = "cron"
+            trigger_args = {
+                "minute": "*"
+            }
+            
+            job = scheduler.add_job(
+                func=func,
+                trigger=trigger_type,
+                **trigger_args,
+                id=id,
+                name=id,
+                replace_existing=True,
+            )
+            
+            
+            JOB_COLLECTION.insert_one({
+                "id": id,
+                "trigger": trigger_args,
+                "created_date": datetime.datetime.now()
+            })
+                    
+            return "Add job name %s" % job.name
+        else: 
+            raise Exception("This job %s is already exist" % id)
+    except Exception as e:
+        return str(e)
     
 @app.route("/pause/<id>", methods=['GET'])  
 def PauseJob(id):
@@ -84,6 +125,21 @@ def DeleteJob(id):
         return "Delete job name %s" % id
     except Exception as e:
         return str(e)
+
+def InitializeSchedule():
+    result = mongo.schedule.job.find()
+    for i in result:
+        try:
+            url = url_for("AddJob", id=i['id'])
+            res = requests.get(url)
+            res.raise_for_status()
+        except Exception as e:
+            print(str(e))
+    
+def GetFunctionFromString(path):
+    module_name, func_name = path.rsplit('.',1)
+    module = importlib.import_module(module_name)
+    return getattr(module, func_name)
     
 if __name__ == "__main__":
     with app.app_context():
@@ -91,5 +147,7 @@ if __name__ == "__main__":
         from celery_trigger import first_trigger
         
         scheduler.start()
+           
+        InitializeSchedule()
            
     app.run("0.0.0.0", 5000)
