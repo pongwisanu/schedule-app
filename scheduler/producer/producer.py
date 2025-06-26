@@ -40,7 +40,7 @@ def GetAll():
             job_list.append(job_data)
         return jsonify({"result" : job_list})
     except Exception as e:
-        return str(e)
+        return str(e), 500
 
 @app.route("/get/db", methods=['GET'])
 def GetDB():
@@ -51,12 +51,13 @@ def GetDB():
             obj = {
                 "id": job['id'],
                 "trigger": job['trigger'],
+                "status": job['status'],
                 "created_date": job['created_date']
             }
             job_list.append(obj)
         return job_list
     except Exception as e:
-        return str(e)
+        return str(e), 500
 
 @app.route("/get/trigger", methods=['GET'])
 def GetTrigger():
@@ -73,7 +74,7 @@ def GetTrigger():
             files_list_obj.append(new_obj)
         return files_list_obj
     except Exception as e:
-        return str(e)
+        return str(e), 500
 
 @app.route("/get/<id>", methods=['GET'])
 def GetJob(id):
@@ -92,7 +93,7 @@ def GetJob(id):
         }
         return jsonify({"result": job_data})
     except Exception as e:
-        return str(e)
+        return str(e), 500
 
 @app.route("/add/<id>", methods=['GET'])
 def AddJob(id):
@@ -121,7 +122,7 @@ def AddJob(id):
         else:
             raise Exception("This job %s is already exist" % id)
     except Exception as e:
-        return str(e)
+        return str(e), 500
     
 @app.route("/pause/<id>", methods=['GET'])  
 def PauseJob(id):
@@ -136,7 +137,7 @@ def PauseJob(id):
         )
         return "Pause job name %s" % id
     except Exception as e:
-        return str(e)
+        return str(e), 500
 
 @app.route("/resume/<id>", methods=['GET'])
 def ResumeJob(id):
@@ -159,7 +160,7 @@ def ResumeJob(id):
         )
         return "Resume job name %s" % id
     except Exception as e:
-        return str(e)
+        return str(e), 500
 
 @app.route("/delete/<id>", methods=['GET'])
 def DeleteJob(id):
@@ -171,7 +172,7 @@ def DeleteJob(id):
         mongo.schedule.job.delete_one({"id":id})
         return "Delete job name %s" % id
     except Exception as e:
-        return str(e)
+        return str(e), 500
 
 def AddJob(id:str, trigger_type:str, trigger_args:dict):
     func = GetFunctionFromString(id)
