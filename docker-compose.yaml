@@ -1,8 +1,8 @@
 services:
   redis:
     image: redis:8
-    ports:
-      - 6379:6379
+    # ports:
+    #   - 6379:6379
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -11,8 +11,8 @@ services:
       retries: 3
   mongo:
     image: mongo:8
-    ports:
-      - ${MONGODB_PORT:-27017}:27017
+    # ports:
+    #   - ${MONGODB_PORT:-27017}:27017
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASS}
@@ -36,18 +36,26 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-  # producer:
-  #   build: scheduler/producer
-  #   environment:
-  #     - BROKER_HOST=redis
-  #   ports:
-  #     - 5001:5000
-  #   depends_on:
-  #     - consumer
-  # consumer:
-  #   build: scheduler/consumer
-  #   environment:
-  #     - BROKER_HOST=redis
-  #   depends_on:
-  #     - redis
+  producer:
+    build: scheduler/producer
+    environment:
+      BROKER_HOST: redis
+      MONGODB_HOST: mongo
+    depends_on:
+      - consumer
+  consumer:
+    build: scheduler/consumer
+    environment:
+      BROKER_HOST: redis
+    depends_on:
+      - redis
+  web:
+    build: app
+    ports:
+      - 5000:5000
+    environment:
+      API_ENDPOINT: producer:5000
+      MONGODB_HOST: mongo
+    depends_on:
+      - producer
   
