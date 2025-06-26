@@ -2,6 +2,14 @@
 <header>
 
 </header>
+<style>
+    table,
+    th,
+    td {
+        border: 1px solid black;
+        border-collapse: collapse;
+    }
+</style>
 
 <body>
     <div>
@@ -10,9 +18,11 @@
         </div>
         <hr>
         <div>
+            <br>
             <div>
-                Schedule List
+                Job List from Database
             </div>
+            <br>
             <div>
                 <table>
                     <thead>
@@ -24,14 +34,42 @@
                                 Schedule
                             </th>
                             <th>
-                                File
+                                Status
                             </th>
                             <th>
                                 Todo
                             </th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="tb_job">
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <hr>
+        <div>
+            <br>
+            <div>
+                Schedule List from scheduler
+            </div>
+            <br>
+            <div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>
+                                ID
+                            </th>
+                            <th>
+                                Trigger
+                            </th>
+                            <th>
+                                Next Run
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="tb_schedule">
                         
                     </tbody>
                 </table>
@@ -39,6 +77,108 @@
         </div>
     </div>
 </body>
+<script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
+    crossorigin="anonymous"></script>
 <script>
+    $(document).ready(function () {
+        GetJob()
+        GetSchedule()
+    })
 
+    async function GetSchedule() {
+        url = "/get/schedule"
+        const res = await fetch(url)
+        if (res.ok) {
+            const res_json = await res.json()
+            res_json['result'].forEach((v, i) => {
+                body = ""
+                body += "<tr>"
+
+                body += "<td>"
+                body += v['id']
+                body += "</td>"
+
+                body += "<td>"
+                body += v['trigger']
+                body += "</td>"
+
+                body += "<td>"
+                body += v['next_run_time']
+                body += "</td>"
+
+                $("#tb_schedule").append(body)
+            })
+        }
+        else {
+            alert(await res.text())
+        }
+    }
+
+    async function GetJob() {
+        url = "/get/job"
+        const res = await fetch(url)
+        if (res.ok) {
+            const res_json = await res.json()
+            res_json.forEach((v, i) => {
+                body = ""
+                body += "<tr>"
+
+                body += "<td>"
+                body += v['id']
+                body += "</td>"
+
+                body += "<td>"
+                body += v['status']
+                body += "</td>"
+
+                body += "<td>"
+                body += JSON.stringify(v['trigger'])
+                body += "</td>"
+
+                body += "<td>"
+                body += "<input type='hidden' class='id' value='" + v['id'] + "'>"
+                if (v['status'] == "enable") {
+                    body += "<button onclick='PauseJob(this)'>Pause</button>"
+                } else {
+                    body += "<button onclick='ResumeJob(this)'>Resume</button>"
+                }
+                body += "</td>"
+
+                body += "</tr>"
+
+                $("#tb_job").append(body)
+            })
+        }
+        else {
+            alert(await res.text())
+        }
+    }
+
+    async function PauseJob(ele) {
+        const parent = $(ele).parent()
+        const id = $(parent).find('.id').val()
+
+        url = `/pause/${id}`
+        const res = await fetch(url)
+        if (res.ok) {
+            window.location.reload()
+        }
+        else {
+            alert(await res.text())
+        }
+    }
+
+    async function ResumeJob(ele) {
+        const parent = $(ele).parent()
+        const id = $(parent).find('.id').val()
+
+        url = `/resume/${id}`
+        const res = await fetch(url)
+        if (res.ok) {
+            window.location.reload()
+        }
+        else {
+            alert(await res.text())
+        }
+    }
 </script>

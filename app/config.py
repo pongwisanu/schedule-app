@@ -17,11 +17,9 @@ load_dotenv(dotenv_path)
 class AllConfig():
     def __init__(self):
         self.APP_ENV = APP_ENV
+        self.API_ENDPOINT = os.environ.get('API_ENDPOINT', 'localhost:5001')
         self.__ConfigPath = os.path.abspath(__file__)
-        self.ROOT_PATH = os.path.split(self.__ConfigPath)[0]
-        self.JOB_PATH = os.path.join(self.ROOT_PATH , "job")
-        if(not os.path.isdir(self.JOB_PATH)):
-            raise Exception("Directory 'job' is not exist in app path")         
+        self.ROOT_PATH = os.path.split(self.__ConfigPath)[0]  
         
         self.DB_USERNAME = os.environ.get('MONGODB_USER')
         self.DB_PASSWORD = os.environ.get('MONGODB_PASS')
