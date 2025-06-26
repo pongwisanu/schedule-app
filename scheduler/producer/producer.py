@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify , url_for
 from extension import scheduler , mongo
 from celery_trigger import first_trigger
 from pymongo.errors import ConnectionFailure
+from config import settings
 import time
 import datetime
 import atexit
@@ -41,9 +42,38 @@ def GetAll():
     except Exception as e:
         return str(e)
 
+@app.route("/get/db", methods=['GET'])
+def GetDB():
+    try:
+        result = mongo.schedule.job.find()
+        job_list = []
+        for job in result:
+            obj = {
+                "id": job['id'],
+                "trigger": job['trigger'],
+                "created_date": job['created_date']
+            }
+            job_list.append(obj)
+        return job_list
+    except Exception as e:
+        return str(e)
+
 @app.route("/get/trigger", methods=['GET'])
 def GetTrigger():
-    return
+    try:
+        files = os.listdir(settings.JOB_PATH)
+        files_list_obj = []
+        for i in files:
+            file_path = os.path.join(settings.JOB_PATH, i)
+            new_obj = {
+                "file_path": file_path,
+                "file_name": i,
+                "create_date": time.ctime(os.path.getctime(file_path))
+            }
+            files_list_obj.append(new_obj)
+        return files_list_obj
+    except Exception as e:
+        return str(e)
 
 @app.route("/get/<id>", methods=['GET'])
 def GetJob(id):
@@ -63,7 +93,7 @@ def GetJob(id):
         return jsonify({"result": job_data})
     except Exception as e:
         return str(e)
-    
+
 @app.route("/add/<id>", methods=['GET'])
 def AddJob(id):
     
@@ -73,31 +103,22 @@ def AddJob(id):
         res = JOB_COLLECTION.find_one({"id":id})
         
         if res is None:
-            func = GetFunctionFromString(id)
-            
             trigger_type = "cron"
             trigger_args = {
                 "minute": "*"
             }
             
-            job = scheduler.add_job(
-                func=func,
-                trigger=trigger_type,
-                **trigger_args,
-                id=id,
-                name=id,
-                replace_existing=True,
-            )
-            
+            job = AddJob(id, trigger_type, trigger_args)
             
             JOB_COLLECTION.insert_one({
                 "id": id,
                 "trigger": trigger_args,
+                "status": "enable",
                 "created_date": datetime.datetime.now()
             })
                     
             return "Add job name %s" % job.name
-        else: 
+        else:
             raise Exception("This job %s is already exist" % id)
     except Exception as e:
         return str(e)
@@ -105,7 +126,14 @@ def AddJob(id):
 @app.route("/pause/<id>", methods=['GET'])  
 def PauseJob(id):
     try:
+        result = mongo.schedule.job.find_one({"id":id})
+        if result is None:
+            raise Exception("'%s' does not exist" % id)
         scheduler.pause_job(id)
+        mongo.schedule.job.update_one(
+            {"id": id},
+            {'$set' : {"status": "disable"}}
+        )
         return "Pause job name %s" % id
     except Exception as e:
         return str(e)
@@ -113,7 +141,22 @@ def PauseJob(id):
 @app.route("/resume/<id>", methods=['GET'])
 def ResumeJob(id):
     try:
-        scheduler.resume_job(id)
+        result = mongo.schedule.job.find_one({"id":id})
+        if result is None:
+            raise Exception("'%s' does not exist" % id)
+
+        try:
+            scheduler.resume_job(id)
+        except Exception as e:
+            if("No job by the id" in str(e)):
+                AddJob(result['id'], "cron", result['trigger'])
+            else:
+                raise Exception(e)
+            
+        mongo.schedule.job.update_one(
+            {"id": id},
+            {'$set' : {"status": "enable"}}
+        )
         return "Resume job name %s" % id
     except Exception as e:
         return str(e)
@@ -121,18 +164,41 @@ def ResumeJob(id):
 @app.route("/delete/<id>", methods=['GET'])
 def DeleteJob(id):
     try:
+        result = mongo.schedule.job.find_one({"id":id})
+        if result is None:
+            raise Exception("'%s' does not exist" % id)
         scheduler.remove_job(id)
+        mongo.schedule.job.delete_one({"id":id})
         return "Delete job name %s" % id
     except Exception as e:
         return str(e)
+
+def AddJob(id:str, trigger_type:str, trigger_args:dict):
+    func = GetFunctionFromString(id)
+    job = scheduler.add_job(
+        func=func,
+        trigger=trigger_type,
+        **trigger_args,
+        id=id,
+        name=id,
+        replace_existing=True,
+    )
+    
+    return job
+
+def EditJob(id:str, trigger_type:str, trigger_args:dict):
+    return
 
 def InitializeSchedule():
     result = mongo.schedule.job.find()
     for i in result:
         try:
-            url = url_for("AddJob", id=i['id'])
-            res = requests.get(url)
-            res.raise_for_status()
+            if i['status'] == "enable":
+                id = i['id']
+                trigger_type = "cron"
+                trigger_args = i['trigger']
+                job = AddJob(id, trigger_type, trigger_args)
+                print("Successful initailize '%s' from database" % job.name)
         except Exception as e:
             print(str(e))
     

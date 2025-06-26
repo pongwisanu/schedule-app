@@ -17,6 +17,14 @@ load_dotenv(dotenv_path)
 class AllConfig():
     def __init__(self):
         self.APP_ENV = APP_ENV
+        self.__ConfigPath = os.path.abspath(__file__)
+        self.ROOT_PATH = os.path.split(self.__ConfigPath)[0]
+        self.JOB_PATH = os.path.join(self.ROOT_PATH , "celery_trigger")
+        if(not os.path.isdir(self.JOB_PATH)):
+            print("celery_trigger is not exist")
+            os.mkdir(self.JOB_PATH)
+            print("Create celery_trigger success")
+            # raise Exception("Directory 'celery_trigger' is not exist in app path")
         
         self.DB_USERNAME = os.environ.get('MONGODB_USER')
         self.DB_PASSWORD = os.environ.get('MONGODB_PASS')
